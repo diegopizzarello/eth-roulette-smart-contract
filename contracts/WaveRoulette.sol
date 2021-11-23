@@ -4,14 +4,19 @@ pragma solidity ^0.8.0;
 
 import "hardhat/console.sol";
 
-
 contract WaveRoulette {
-    uint totalWaves = 0;
-    uint raffleSize = 3;
+    uint256 totalWaves = 0;
+    uint256 raffleSize = 3;
 
     event NewWave(address indexed from, uint256 timestamp, string message);
 
-    event NewWinner(address indexed from, uint256 timestamp, string message, Wave[] players);
+    event NewWinner(
+        address indexed from,
+        uint256 timestamp,
+        string message,
+        Wave[] players,
+        Wave lastWave
+    );
 
     struct Wave {
         address waver;
@@ -26,8 +31,15 @@ contract WaveRoulette {
 
     constructor() payable {}
 
-    function random() private view returns (uint) {
-        return uint8(uint256(keccak256(abi.encodePacked(block.timestamp, block.difficulty)))%raffleSize);
+    function random() private view returns (uint256) {
+        return
+            uint8(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(block.timestamp, block.difficulty)
+                    )
+                ) % raffleSize
+            );
     }
 
     function sendPrize(address winner) private {
@@ -40,17 +52,22 @@ contract WaveRoulette {
         require(success, "Failed to withdraw money from contract.");
     }
 
-    function pickWinner() private {
-        uint index = random();
+    function pickWinner(Wave memory _newWave) private {
+        uint256 index = random();
         Wave memory winner = rafflePlayers[index];
         sendPrize(winner.waver);
         winners.push(Wave(winner.waver, winner.message, winner.timestamp));
-        emit NewWinner(winner.waver, block.timestamp, winner.message, rafflePlayers);
+        emit NewWinner(
+            winner.waver,
+            block.timestamp,
+            winner.message,
+            rafflePlayers,
+            _newWave
+        );
         delete rafflePlayers;
     }
 
     function wave(string memory _message) public {
-
         // require(
         //     lastWavedAt[msg.sender] + 5 seconds < block.timestamp,
         //     "Wait 5 seconds"
@@ -59,13 +76,14 @@ contract WaveRoulette {
         lastWavedAt[msg.sender] = block.timestamp;
         totalWaves += 1;
 
-        waves.push(Wave(msg.sender, _message, block.timestamp));
-        rafflePlayers.push(Wave(msg.sender, _message, block.timestamp));
-
-        emit NewWave(msg.sender, block.timestamp, _message);
+        Wave memory newWave = Wave(msg.sender, _message, block.timestamp);
+        waves.push(newWave);
+        rafflePlayers.push(newWave);
 
         if (rafflePlayers.length == raffleSize) {
-            pickWinner();
+            pickWinner(newWave);
+        } else {
+            emit NewWave(msg.sender, block.timestamp, _message);
         }
     }
 
@@ -81,7 +99,7 @@ contract WaveRoulette {
         return rafflePlayers;
     }
 
-    function getTotalWaves() public view returns (uint) {
+    function getTotalWaves() public view returns (uint256) {
         return totalWaves;
     }
 }
